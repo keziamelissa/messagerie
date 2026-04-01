@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { MessageSquare, Loader2 } from 'lucide-react';
+import { MessageSquare, Loader2, ArrowLeft } from 'lucide-react';
 
 function Login() {
   const [email, setEmail] = useState('');
@@ -29,6 +29,10 @@ function Login() {
   return (
     <div className="auth-container">
       <div className="auth-card">
+        <button className="back-btn" onClick={() => navigate('/')}>
+          <ArrowLeft size={20} />
+          <span>Retour</span>
+        </button>
         <div className="auth-header">
           <div className="auth-logo">
             <MessageSquare size={48} />
@@ -157,6 +161,22 @@ function Login() {
         }
         .auth-footer a:hover {
           text-decoration: underline;
+        }
+        .back-btn {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          background: transparent;
+          border: none;
+          color: var(--text-light);
+          font-size: 0.875rem;
+          cursor: pointer;
+          padding: 0;
+          margin-bottom: 1rem;
+          transition: color 0.2s;
+        }
+        .back-btn:hover {
+          color: var(--primary);
         }
       `}</style>
     </div>
