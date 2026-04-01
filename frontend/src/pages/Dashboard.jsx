@@ -29,6 +29,9 @@ function Dashboard() {
   const [groupName, setGroupName] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [notifications, setNotifications] = useState([]);
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
 
   useEffect(() => {
     fetchConversations();
@@ -102,6 +105,20 @@ function Dashboard() {
     }
   };
 
+  const handleUpdateProfile = async () => {
+    try {
+      await axios.put('/api/users/profile', {
+        name: editName,
+        email: editEmail
+      });
+      setShowEditProfile(false);
+      // Refresh user data
+      window.location.reload();
+    } catch (error) {
+      alert(error.response?.data?.message || 'Erreur lors de la mise à jour');
+    }
+  };
+
   const getOtherUser = (conversation) => {
     if (!conversation.ConversationMembers) return null;
     const other = conversation.ConversationMembers.find(
@@ -130,17 +147,6 @@ function Dashboard() {
           <div className="logo">
             <img src={logo} alt="PingMe" className="logo-img" />
             <span>PingMe</span>
-          </div>
-          <div className="user-info">
-            <div className="avatar">
-              {user?.name?.charAt(0).toUpperCase()}
-            </div>
-            <div className="user-details">
-              <span className="user-name">{user?.name}</span>
-              <span className={`user-status ${user?.status}`}>
-                {user?.status === 'online' ? 'En ligne' : 'Hors ligne'}
-              </span>
-            </div>
           </div>
         </div>
 
@@ -187,6 +193,17 @@ function Dashboard() {
         </div>
 
         <div className="sidebar-footer">
+          <div className="user-profile" onClick={() => { setEditName(user?.name || ''); setEditEmail(user?.email || ''); setShowEditProfile(true); }}>
+            <div className="avatar">
+              {user?.name?.charAt(0).toUpperCase()}
+            </div>
+            <div className="user-details">
+              <span className="user-name">{user?.name}</span>
+              <span className={`user-status ${user?.status}`}>
+                {user?.status === 'online' ? 'En ligne' : 'Hors ligne'}
+              </span>
+            </div>
+          </div>
           <button className="btn btn-secondary logout-btn" onClick={logout}>
             <LogOut size={18} />
             Déconnexion
@@ -281,6 +298,45 @@ function Dashboard() {
                 disabled={selectedUsers.length === 0 || (isGroup && !groupName)}
               >
                 Créer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEditProfile && (
+        <div className="modal-overlay" onClick={() => setShowEditProfile(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <h3>Modifier mon profil</h3>
+
+            <div className="form-group">
+              <label>Nom</label>
+              <input
+                type="text"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="Votre nom"
+                className="input"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Email</label>
+              <input
+                type="email"
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+                placeholder="votre@email.com"
+                className="input"
+              />
+            </div>
+
+            <div className="modal-actions">
+              <button className="btn btn-secondary" onClick={() => setShowEditProfile(false)}>
+                Annuler
+              </button>
+              <button className="btn btn-primary" onClick={handleUpdateProfile}>
+                Enregistrer
               </button>
             </div>
           </div>
@@ -385,6 +441,19 @@ function Dashboard() {
         .sidebar-footer {
           padding: 1rem;
           border-top: 1px solid var(--border);
+        }
+        .user-profile {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          padding: 0.75rem;
+          margin-bottom: 0.75rem;
+          border-radius: 0.5rem;
+          cursor: pointer;
+          transition: background 0.2s;
+        }
+        .user-profile:hover {
+          background: var(--bg);
         }
         .logout-btn {
           width: 100%;
