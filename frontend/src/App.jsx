@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
+import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
@@ -13,16 +14,32 @@ function App() {
     <AuthProvider>
       <SocketProvider>
         <BrowserRouter>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/chat/:conversationId" element={<Chat />} />
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          </Routes>
+          <AppRoutes />
         </BrowserRouter>
       </SocketProvider>
     </AuthProvider>
+  );
+}
+
+function AppRoutes() {
+  const { isAuthenticated, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="loading">
+        <div className="spinner"></div>
+      </div>
+    );
+  }
+
+  return (
+    <Routes>
+      <Route path="/" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Home />} />
+      <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Login />} />
+      <Route path="/register" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Register />} />
+      <Route path="/dashboard" element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" />} />
+      <Route path="/chat/:conversationId" element={isAuthenticated ? <Chat /> : <Navigate to="/login" />} />
+    </Routes>
   );
 }
 

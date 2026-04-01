@@ -4,7 +4,6 @@ import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import axios from 'axios';
 import { 
-  MessageSquare, 
   Users, 
   Plus, 
   LogOut, 
@@ -12,6 +11,7 @@ import {
   User,
   Bell
 } from 'lucide-react';
+import logo from '../photo/logo.jpeg';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -127,8 +127,8 @@ function Dashboard() {
       <aside className="sidebar">
         <div className="sidebar-header">
           <div className="logo">
-            <MessageSquare />
-            <span>Messagerie</span>
+            <img src={logo} alt="PingMe" className="logo-img" />
+            <span>PingMe</span>
           </div>
           <div className="user-info">
             <div className="avatar">
