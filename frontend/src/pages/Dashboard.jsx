@@ -9,7 +9,8 @@ import {
   LogOut, 
   Search,
   User,
-  Bell
+  Bell,
+  Check
 } from 'lucide-react';
 import logo from '../photo/logo.jpeg';
 import { formatDistanceToNow } from 'date-fns';
@@ -265,7 +266,7 @@ function Dashboard() {
                     <span className="user-item-name">{u.name}</span>
                     <span className="user-item-email">{u.email}</span>
                   </div>
-                  {selectedUsers.includes(u.id) && <span className="check">✓</span>}
+                  {selectedUsers.includes(u.id) && <Check size={18} className="check-icon" />}
                 </div>
               ))}
             </div>
@@ -504,10 +505,66 @@ function Dashboard() {
           color: var(--primary);
           font-weight: bold;
         }
+        .check-icon {
+          color: var(--primary);
+        }
         .modal-actions {
           display: flex;
           gap: 0.75rem;
           justify-content: flex-end;
+        }
+        @media (max-width: 768px) {
+          .dashboard {
+            flex-direction: column;
+          }
+          .sidebar {
+            width: 100%;
+            height: auto;
+            max-height: 40vh;
+            border-right: none;
+            border-bottom: 1px solid var(--border);
+          }
+          .conversations-list {
+            max-height: 200px;
+          }
+          .main-content {
+            flex: 1;
+          }
+          .welcome-section h1 {
+            font-size: 1.5rem;
+          }
+          .modal {
+            width: 95%;
+            margin: 1rem;
+          }
+          .users-list {
+            max-height: 200px;
+          }
+        }
+        @media (max-width: 480px) {
+          .sidebar-header {
+            padding: 1rem;
+          }
+          .user-info {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.5rem;
+          }
+          .new-conv-btn {
+            margin: 0.75rem;
+          }
+          .main-header {
+            padding: 0.75rem 1rem;
+          }
+          .main-header h2 {
+            font-size: 1rem;
+          }
+          .welcome-section {
+            padding: 1rem;
+          }
+          .welcome-section h1 {
+            font-size: 1.25rem;
+          }
         }
       `}</style>
     </div>

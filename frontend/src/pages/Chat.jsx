@@ -382,6 +382,81 @@ function Chat() {
           opacity: 0.5;
           cursor: not-allowed;
         }
+        @media (max-width: 768px) {
+          .chat-header {
+            padding: 0.75rem 1rem;
+            gap: 0.5rem;
+          }
+          .chat-header-info .avatar {
+            width: 36px;
+            height: 36px;
+            font-size: 0.875rem;
+          }
+          .chat-header-details h3 {
+            font-size: 0.9rem;
+          }
+          .chat-header-actions {
+            gap: 0.25rem;
+          }
+          .chat-header-actions .btn {
+            padding: 0.5rem;
+          }
+          .chat-header-actions .btn svg {
+            width: 18px;
+            height: 18px;
+          }
+          .messages-container {
+            padding: 0.75rem;
+          }
+          .message-content {
+            max-width: 80%;
+          }
+          .message-bubble {
+            padding: 0.625rem 0.875rem;
+            font-size: 0.875rem;
+          }
+          .message-input {
+            padding: 0.75rem 1rem;
+            gap: 0.5rem;
+          }
+          .attach-btn, .send-btn {
+            padding: 0.625rem;
+          }
+        }
+        @media (max-width: 480px) {
+          .chat-header {
+            padding: 0.625rem 0.75rem;
+          }
+          .back-btn {
+            width: 36px;
+            height: 36px;
+          }
+          .chat-header-info {
+            gap: 0.5rem;
+          }
+          .chat-header-info .avatar {
+            width: 32px;
+            height: 32px;
+            font-size: 0.75rem;
+          }
+          .chat-header-details h3 {
+            font-size: 0.85rem;
+          }
+          .chat-header-actions .btn:nth-child(1),
+          .chat-header-actions .btn:nth-child(2) {
+            display: none;
+          }
+          .message-content {
+            max-width: 85%;
+          }
+          .message-bubble {
+            padding: 0.5rem 0.75rem;
+            font-size: 0.8125rem;
+          }
+          .message-input input {
+            font-size: 16px;
+          }
+        }
       `}</style>
     </div>
   );
