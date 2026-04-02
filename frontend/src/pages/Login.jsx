@@ -96,10 +96,12 @@ function Login() {
           width: 100%;
           max-width: 400px;
           box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+          position: relative;
         }
         .auth-header {
           text-align: center;
           margin-bottom: 1.5rem;
+          padding-top: 2rem;
         }
         .auth-logo {
           width: 80px;
@@ -163,6 +165,9 @@ function Login() {
           text-decoration: underline;
         }
         .back-btn {
+          position: absolute;
+          top: 1rem;
+          left: 1rem;
           display: flex;
           align-items: center;
           gap: 0.5rem;
@@ -171,9 +176,9 @@ function Login() {
           color: var(--text-light);
           font-size: 0.875rem;
           cursor: pointer;
-          padding: 0;
-          margin-bottom: 1rem;
+          padding: 0.5rem;
           transition: color 0.2s;
+          z-index: 10;
         }
         .back-btn:hover {
           color: var(--primary);

@@ -15,6 +15,14 @@ const Notification = sequelize.define('Notification', {
       key: 'id'
     }
   },
+  conversationId: {
+    type: DataTypes.UUID,
+    allowNull: true,
+    references: {
+      model: 'conversations',
+      key: 'id'
+    }
+  },
   type: {
     type: DataTypes.ENUM('message', 'system'),
     allowNull: false

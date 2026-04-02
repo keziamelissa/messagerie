@@ -1,5 +1,13 @@
 const { Message, Conversation, ConversationMember, Notification, User } = require('../models');
 
+// Store io instance (will be set from app.js)
+let io = null;
+
+const setSocketIO = (socketIO) => {
+  io = socketIO;
+  console.log('[Controller] SocketIO instance set:', io ? 'Yes' : 'No');
+};
+
 const messageController = {
   // Create message
   createMessage: async (req, res) => {
@@ -44,11 +52,42 @@ const messageController = {
       const sender = await User.findByPk(req.userId);
       
       for (const member of otherMembers) {
-        await Notification.create({
+        const notification = await Notification.create({
           userId: member.userId,
           type: 'message',
           content: `New message from ${sender.name}`
         });
+        
+        // Send notification to online users via WebSocket
+        if (io) {
+          const memberSockets = await io.in(`user_${member.userId}`).fetchSockets();
+          console.log(`[Controller] Sending notification to user_${member.userId}, sockets found:`, memberSockets.length);
+          memberSockets.forEach(s => {
+            s.emit('notification', notification.toJSON ? notification.toJSON() : notification);
+          });
+        } else {
+          console.warn('[Controller] io not available, cannot send notification');
+        }
+      }
+      
+      // Broadcast to conversation room via WebSocket
+      if (io) {
+        // Serialize to plain object to ensure proper format
+        const messageJson = result.toJSON ? result.toJSON() : result;
+        const roomName = `conv_${conversationId}`;
+        
+        // Debug: Check sockets in room
+        const socketsInRoom = io.sockets.adapter.rooms.get(roomName);
+        console.log(`[Controller] Room ${roomName} has ${socketsInRoom ? socketsInRoom.size : 0} sockets`);
+        if (socketsInRoom) {
+          console.log(`[Controller] Socket IDs in room:`, Array.from(socketsInRoom));
+        }
+        
+        console.log(`[Controller] Broadcasting to room ${roomName}:`, messageJson.id);
+        io.to(roomName).emit('new_message', messageJson);
+        console.log(`[Controller] Broadcast complete`);
+      } else {
+        console.warn('[Controller] io not available, cannot broadcast');
       }
       
       res.status(201).json(result);
@@ -144,4 +183,4 @@ const messageController = {
   }
 };
 
-module.exports = messageController;
+module.exports = { messageController, setSocketIO };

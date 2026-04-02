@@ -6,15 +6,19 @@ const cors = require('cors');
 const { sequelize, User, Conversation, ConversationMember, Message, Notification } = require('./models');
 const jwt = require('jsonwebtoken');
 const { JWT_SECRET } = require('./middleware/auth');
+const { setSocketIO } = require('./controllers/messageController');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: 'http://localhost:5173',
+    origin: ['http://localhost:5173', 'http://localhost:5174'],
     methods: ['GET', 'POST']
   }
 });
+
+// Pass io instance to controllers
+setSocketIO(io);
 
 // Middleware
 app.use(cors());
@@ -48,19 +52,26 @@ io.use(async (socket, next) => {
 });
 
 // Socket.io connection handler
-io.on('connection', (socket) => {
+io.on('connection', async (socket) => {
   console.log(`User connected: ${socket.user.name} (${socket.userId})`);
+  
+  // Update user status to online and join user-specific room
+  await User.update({ status: 'online' }, { where: { id: socket.userId } });
+  socket.join(`user_${socket.userId}`);
+  io.emit('user_status_change', { userId: socket.userId, status: 'online' });
 
   // Join conversation room
   socket.on('join_conversation', (conversationId) => {
     socket.join(`conv_${conversationId}`);
-    console.log(`${socket.user.name} joined conversation ${conversationId}`);
+    console.log(`[Socket] ${socket.user.name} joined conversation ${conversationId}`);
+    console.log(`[Socket] Socket rooms:`, Array.from(socket.rooms));
   });
 
   // Leave conversation room
   socket.on('leave_conversation', (conversationId) => {
     socket.leave(`conv_${conversationId}`);
-    console.log(`${socket.user.name} left conversation ${conversationId}`);
+    console.log(`[Socket] ${socket.user.name} left conversation ${conversationId}`);
+    console.log(`[Socket] Socket rooms:`, Array.from(socket.rooms));
   });
 
   // Handle send message
@@ -107,6 +118,7 @@ io.on('connection', (socket) => {
         // Create notification
         const notification = await Notification.create({
           userId: member.userId,
+          conversationId: conversationId,
           type: 'message',
           content: `Nouveau message de ${socket.user.name}`
         });
@@ -114,7 +126,7 @@ io.on('connection', (socket) => {
         // Send notification to online users
         const memberSockets = await io.in(`user_${member.userId}`).fetchSockets();
         memberSockets.forEach(s => {
-          s.emit('notification', notification);
+          s.emit('notification', notification.toJSON());
         });
       }
     } catch (error) {

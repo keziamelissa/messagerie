@@ -18,7 +18,7 @@ import { fr } from 'date-fns/locale';
 
 function Dashboard() {
   const { user, logout } = useAuth();
-  const { onNotification } = useSocket();
+  const { onNotification, onUserStatusChange, showBrowserNotification, requestNotificationPermission } = useSocket();
   const navigate = useNavigate();
   const [conversations, setConversations] = useState([]);
   const [users, setUsers] = useState([]);
@@ -28,23 +28,99 @@ function Dashboard() {
   const [isGroup, setIsGroup] = useState(false);
   const [groupName, setGroupName] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [notifications, setNotifications] = useState([]);
+  const [notifications, setNotifications] = useState(0);
+  const [notificationList, setNotificationList] = useState([]);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
+  const [toasts, setToasts] = useState([]);
 
   useEffect(() => {
     fetchConversations();
     fetchUsers();
     fetchNotifications();
+    
+    // Request browser notification permission
+    requestNotificationPermission();
 
-    const unsubscribe = onNotification((data) => {
-      setNotifications(prev => [data, ...prev]);
+    const unsubscribeNotification = onNotification((data) => {
+      console.log('[Dashboard] Received notification:', data);
+      setNotifications(prev => prev + 1);
       fetchConversations();
+      
+      // Play sound alert
+      playNotificationSound();
+      
+      // Show browser notification if user is not focused on the page
+      if (document.hidden) {
+        const notification = showBrowserNotification('Nouveau message', {
+          body: data.content || 'Vous avez reçu une notification',
+          tag: data.id,
+          requireInteraction: false
+        });
+        
+        // Handle notification click
+        if (notification) {
+          notification.onclick = () => {
+            window.focus();
+            notification.close();
+            // Navigate to the conversation if available
+            if (data.conversationId) {
+              navigate(`/chat/${data.conversationId}`);
+            }
+          };
+        }
+      } else {
+        // Show in-app toast notification
+        const toastId = Date.now();
+        setToasts(prev => [...prev, { id: toastId, content: data.content || 'Nouvelle notification' }]);
+        
+        // Remove toast after 4 seconds
+        setTimeout(() => {
+          setToasts(prev => prev.filter(t => t.id !== toastId));
+        }, 4000);
+      }
     });
 
+    const unsubscribeStatus = onUserStatusChange((data) => {
+      console.log('[Dashboard] User status changed:', data);
+      setConversations(prev => prev.map(conv => {
+        // Update status for users in this conversation
+        const updatedMembers = conv.members?.map(member => {
+          if (member.id === data.userId) {
+            return { ...member, status: data.status };
+          }
+          return member;
+        });
+        return { ...conv, members: updatedMembers };
+      }));
+      // Also update users list
+      setUsers(prev => prev.map(u => 
+        u.id === data.userId ? { ...u, status: data.status } : u
+      ));
+    });
+
+    // Poll for notifications every 30 seconds (for when user comes back online)
+    const pollInterval = setInterval(() => {
+      fetchNotifications();
+    }, 30000);
+
+    // Check notifications when user returns to the tab
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        console.log('[Dashboard] User returned to tab, checking notifications...');
+        fetchNotifications();
+        fetchConversations();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
-      if (unsubscribe) unsubscribe();
+      if (unsubscribeNotification) unsubscribeNotification();
+      if (unsubscribeStatus) unsubscribeStatus();
+      clearInterval(pollInterval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 
@@ -74,6 +150,85 @@ function Dashboard() {
       setNotifications(response.data.count);
     } catch (error) {
       console.error('Error fetching notifications:', error);
+    }
+  };
+
+  // Audio alert for new notifications
+  const playNotificationSound = () => {
+    try {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.frequency.value = 800;
+      oscillator.type = 'sine';
+      
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.5);
+    } catch (error) {
+      console.log('Audio notification not supported');
+    }
+  };
+
+  const fetchAllNotifications = async () => {
+    try {
+      const response = await axios.get('/api/notifications');
+      setNotificationList(response.data);
+    } catch (error) {
+      console.error('Error fetching all notifications:', error);
+    }
+  };
+
+  const markAsRead = async (id) => {
+    try {
+      await axios.put(`/api/notifications/${id}/read`);
+      setNotificationList(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+      fetchNotifications();
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      await axios.put('/api/notifications/read-all');
+      setNotificationList(prev => prev.map(n => ({ ...n, isRead: true })));
+      setNotifications(0);
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+    }
+  };
+
+  const handleNotificationClick = () => {
+    setShowNotifications(!showNotifications);
+    if (!showNotifications) {
+      fetchAllNotifications();
+    }
+  };
+
+  const handleNotificationItemClick = async (notification) => {
+    console.log('[Dashboard] Clicked notification:', notification);
+    
+    // Mark as read if not already read
+    if (!notification.isRead) {
+      await markAsRead(notification.id);
+    }
+    
+    // Navigate to conversation if available
+    if (notification.conversationId) {
+      console.log('[Dashboard] Navigating to conversation:', notification.conversationId);
+      navigate(`/chat/${notification.conversationId}`);
+      setShowNotifications(false);
+    } else {
+      console.warn('[Dashboard] No conversationId for this notification');
+      // For old notifications without conversationId, just close the panel
+      setShowNotifications(false);
     }
   };
 
@@ -168,9 +323,9 @@ function Dashboard() {
                   to={`/chat/${conv.id}`}
                   className="conversation-item"
                 >
-                  <div className="avatar">
+                  <div className="avatar conversation-avatar">
                     {conv.isGroup ? (
-                      <Users size={20} />
+                      <Users size={18} />
                     ) : (
                       otherUser?.name?.charAt(0).toUpperCase() || '?'
                     )}
@@ -215,7 +370,7 @@ function Dashboard() {
         <header className="main-header">
           <h2>Mes Conversations</h2>
           <div className="header-actions">
-            <button className="btn btn-secondary">
+            <button className="btn btn-secondary notification-btn" onClick={handleNotificationClick}>
               <Bell size={20} />
               {notifications > 0 && <span className="badge">{notifications}</span>}
             </button>
@@ -227,6 +382,42 @@ function Dashboard() {
           <p>Sélectionnez une conversation ou créez-en une nouvelle pour commencer à discuter.</p>
         </div>
       </main>
+
+      {showNotifications && (
+        <div className="notification-overlay" onClick={() => setShowNotifications(false)}>
+          <div className="notification-panel" onClick={e => e.stopPropagation()}>
+            <div className="notification-header">
+              <h3>Notifications</h3>
+              {notificationList.some(n => !n.isRead) && (
+                <button className="btn btn-text" onClick={markAllAsRead}>
+                  Tout marquer comme lu
+                </button>
+              )}
+            </div>
+            <div className="notification-list">
+              {notificationList.length === 0 ? (
+                <p className="no-notifications">Aucune notification</p>
+              ) : (
+                notificationList.map(notification => (
+                  <div
+                    key={notification.id}
+                    className={`notification-item ${!notification.isRead ? 'unread' : ''}`}
+                    onClick={() => handleNotificationItemClick(notification)}
+                  >
+                    <div className="notification-content">
+                      <p className="notification-text">{notification.content}</p>
+                      <span className="notification-time">
+                        {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true, locale: fr })}
+                      </span>
+                    </div>
+                    {!notification.isRead && <div className="notification-dot"></div>}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {showNewConv && (
         <div className="modal-overlay" onClick={() => setShowNewConv(false)}>
@@ -343,6 +534,15 @@ function Dashboard() {
         </div>
       )}
 
+      {/* Toast Notifications */}
+      <div className="toast-container">
+        {toasts.map(toast => (
+          <div key={toast.id} className="toast">
+            <span>{toast.content}</span>
+          </div>
+        ))}
+      </div>
+
       <style>{`
         .dashboard {
           display: flex;
@@ -422,6 +622,12 @@ function Dashboard() {
         .conversation-item:hover {
           background: var(--bg);
         }
+        .conversation-item .avatar {
+          width: 36px;
+          height: 36px;
+          font-size: 0.8rem;
+          flex-shrink: 0;
+        }
         .conversation-info {
           flex: 1;
           display: flex;
@@ -488,6 +694,123 @@ function Dashboard() {
           font-size: 0.625rem;
           padding: 0.125rem 0.375rem;
           border-radius: 9999px;
+        }
+        .notification-btn {
+          position: relative;
+        }
+        .toast-container {
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          z-index: 1000;
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
+        }
+        .toast {
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: 0.5rem;
+          padding: 1rem 1.25rem;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+          animation: slideIn 0.3s ease-out;
+          max-width: 300px;
+        }
+        @keyframes slideIn {
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+        .notification-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 50;
+        }
+        .notification-panel {
+          position: absolute;
+          top: 70px;
+          right: 20px;
+          width: 360px;
+          max-height: 500px;
+          background: var(--surface);
+          border-radius: 1rem;
+          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+          border: 1px solid var(--border);
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+        }
+        .notification-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 1rem 1.25rem;
+          border-bottom: 1px solid var(--border);
+        }
+        .notification-header h3 {
+          font-size: 1rem;
+          font-weight: 600;
+        }
+        .btn-text {
+          background: none;
+          border: none;
+          color: var(--primary);
+          font-size: 0.875rem;
+          cursor: pointer;
+          padding: 0.25rem 0.5rem;
+        }
+        .btn-text:hover {
+          background: var(--bg);
+          border-radius: 0.25rem;
+        }
+        .notification-list {
+          overflow-y: auto;
+          max-height: 400px;
+        }
+        .no-notifications {
+          text-align: center;
+          padding: 2rem;
+          color: var(--text-light);
+        }
+        .notification-item {
+          display: flex;
+          align-items: flex-start;
+          gap: 0.75rem;
+          padding: 1rem 1.25rem;
+          border-bottom: 1px solid var(--border);
+          cursor: pointer;
+          transition: background 0.2s;
+        }
+        .notification-item:hover {
+          background: var(--bg);
+        }
+        .notification-item.unread {
+          background: #eef2ff;
+        }
+        .notification-content {
+          flex: 1;
+        }
+        .notification-text {
+          font-size: 0.875rem;
+          margin-bottom: 0.25rem;
+          color: var(--text);
+        }
+        .notification-time {
+          font-size: 0.75rem;
+          color: var(--text-light);
+        }
+        .notification-dot {
+          width: 8px;
+          height: 8px;
+          background: var(--primary);
+          border-radius: 50%;
+          flex-shrink: 0;
+          margin-top: 0.375rem;
         }
         .welcome-section {
           flex: 1;

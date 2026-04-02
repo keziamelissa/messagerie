@@ -29,18 +29,51 @@ function Chat() {
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
+    console.log('[Chat] Component mounted, conversationId:', conversationId);
     fetchConversation();
     fetchMessages();
-    joinConversation(conversationId);
+    
+    // Small delay to ensure socket is connected
+    setTimeout(() => {
+      console.log('[Chat] Joining conversation after delay');
+      joinConversation(conversationId);
+    }, 100);
 
     const unsubscribe = onNewMessage((data) => {
-      if (data.conversationId === conversationId) {
-        setMessages(prev => [...prev, data]);
+      console.log('[Chat] Received new_message:', data);
+      if (String(data.conversationId) === String(conversationId)) {
+        setMessages(prev => {
+          // Check if message already exists by ID (handle both string and number types)
+          const existsById = prev.some(m => String(m.id) === String(data.id));
+          if (existsById) {
+            console.log('[Chat] Message already exists by ID, skipping');
+            return prev;
+          }
+          
+          // Check if this is our own message that we already added optimistically
+          // (same sender, same content, within last 5 seconds)
+          const isDuplicate = prev.some(m => 
+            String(m.senderId) === String(data.senderId) && 
+            m.content === data.content &&
+            Math.abs(new Date(m.createdAt) - new Date(data.createdAt)) < 5000
+          );
+          
+          if (isDuplicate) {
+            console.log('[Chat] Duplicate message detected (same sender/content/time), skipping');
+            return prev;
+          }
+          
+          console.log('[Chat] Adding new message to state');
+          return [...prev, data];
+        });
         scrollToBottom();
+      } else {
+        console.log('[Chat] Message for different conversation, ignoring');
       }
     });
 
     return () => {
+      console.log('[Chat] Component unmounting, leaving conversation');
       leaveConversation(conversationId);
       if (unsubscribe) unsubscribe();
     };
@@ -72,15 +105,40 @@ function Chat() {
     e.preventDefault();
     if (!newMessage.trim()) return;
 
+    const messageContent = newMessage.trim();
+    const tempMessage = {
+      id: `temp-${Date.now()}`,
+      conversationId: parseInt(conversationId),
+      senderId: user?.id,
+      sender: user,
+      content: messageContent,
+      type: 'text',
+      createdAt: new Date().toISOString(),
+      isRead: false
+    };
+
+    // Add message immediately to UI (optimistic update)
+    setMessages(prev => [...prev, tempMessage]);
+    setNewMessage('');
+    scrollToBottom();
+
     try {
-      await axios.post('/api/messages', {
+      // Use axios.post to ensure message is saved to database
+      const response = await axios.post('/api/messages', {
         conversationId,
-        content: newMessage,
+        content: messageContent,
         type: 'text'
       });
-      setNewMessage('');
+      
+      // Replace temp message with actual message from server
+      setMessages(prev => prev.map(m => 
+        String(m.id) === String(tempMessage.id) ? response.data : m
+      ));
     } catch (error) {
       console.error('Error sending message:', error);
+      // Remove temp message on error
+      setMessages(prev => prev.filter(m => m.id !== tempMessage.id));
+      alert('Erreur lors de l\'envoi du message');
     }
   };
 
